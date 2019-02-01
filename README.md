@@ -15,7 +15,7 @@ Preperation:
 Install:
 1. debian/base/include/etc/confluent/docker/docker-utils.jar 
 
-*if mvn is not available by /bin/sh/ this step can be done from console)*
+*if mvn is not available by /bin/sh/ this step can be done from console*
 
 *if parent pom is not resolved issue will be appeared - use WA that commented in pom.xml*
 
