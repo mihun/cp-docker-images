@@ -1,9 +1,29 @@
-Docker Images for Confluent Plaform
+Docker Images for Confluent Platform
 ===
 
 Docker images for deploying and running the Confluent Platform.  The images are currently available on [DockerHub](https://hub.docker.com/u/confluentinc/).  They are currently only available for Confluent Platform 3.0.1 and after.
 
 Full documentation for using the images can be found [here](http://docs.confluent.io/current/cp-docker-images/docs/intro.html).
+
+# Build images based on OpenJDK-8-OpenJ9:
+*Use Makefile to do all follow operations.*
+
+Preperation:
+1. clean-containers
+2. clean-images
+
+Install:
+1. debian/base/include/etc/confluent/docker/docker-utils.jar 
+
+*if mvn is not available by /bin/sh/ this step can be done from console)*
+
+*if parent pom is not resolved issue will be appeared - use WA that commented in pom.xml*
+
+2. build-debian
+
+Current component list in Makefile is related to kafka connect build and can be modified:
+
+COMPONENTS := base kafka kafka-connect-base kafka-connect
 
 # Important Caveat - Images Not Tested for Docker for Mac or Windows
 	
