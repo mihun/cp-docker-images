@@ -55,8 +55,8 @@ ENV CONFLUENT_PLATFORM_LABEL=$CONFLUENT_PLATFORM_LABEL
 ENV CONFLUENT_VERSION="$CONFLUENT_MAJOR_VERSION.$CONFLUENT_MINOR_VERSION.$CONFLUENT_PATCH_VERSION"
 ENV CONFLUENT_DEB_VERSION="1"
 
-# Zulu
-ENV ZULU_OPENJDK_VERSION="8=8.17.0.3"
+# AdoptOpenJDK
+ENV OPENJDK_OPENJ9_VERSION="8"
 
 # This affects how strings in Java class files are interpreted.  We want UTF-8 and this is the only locale in the
 # base image that supports it
@@ -78,17 +78,35 @@ RUN echo "===> Updating debian ....." \
     && pip install --no-cache-dir --upgrade pip==${PYTHON_PIP_VERSION} \
     && pip install --no-cache-dir git+https://github.com/confluentinc/confluent-docker-utils@v0.0.20 \
     && apt remove --purge -y git \
-    && echo "Installing Zulu OpenJDK ${ZULU_OPENJDK_VERSION}" \
-    && apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 0x219BD9C9 \
-    && echo "deb http://repos.azulsystems.com/debian stable  main" >> /etc/apt/sources.list.d/zulu.list \
-    && apt-get -qq update \
-    && apt-get -y install zulu-${ZULU_OPENJDK_VERSION} \
     && echo "===> Installing Kerberos Patch ..." \
     && DEBIAN_FRONTEND=noninteractive apt-get -y install krb5-user \
     && rm -rf /var/lib/apt/lists/* \
     && echo "===> Adding confluent repository...${CONFLUENT_PACKAGES_REPO}/deb/${CONFLUENT_MAJOR_VERSION}.${CONFLUENT_MINOR_VERSION}" \
     && if [ "x$ALLOW_UNSIGNED" = "xtrue" ]; then echo "APT::Get::AllowUnauthenticated \"true\";" > /etc/apt/apt.conf.d/allow_unauthenticated; else curl -L ${CONFLUENT_PACKAGES_REPO}/deb/${CONFLUENT_MAJOR_VERSION}.${CONFLUENT_MINOR_VERSION}/archive.key | apt-key add - ; fi \
     && echo "deb [arch=amd64] ${CONFLUENT_PACKAGES_REPO}/deb/${CONFLUENT_MAJOR_VERSION}.${CONFLUENT_MINOR_VERSION} stable main" >> /etc/apt/sources.list
+
+# Create links to the required compiler version.
+RUN ln -s gcc-4.8 /usr/bin/cc \
+ && ln -s gcc-4.8 /usr/bin/gcc \
+ && ln -s g++-4.8 /usr/bin/c++ \
+ && ln -s g++-4.8 /usr/bin/g++
+
+# Download and unpack freemarker.
+RUN cd /root \
+ && wget https://sourceforge.net/projects/freemarker/files/freemarker/2.3.8/freemarker-2.3.8.tar.gz/download -O freemarker.tar.gz \
+ && tar -xzf freemarker.tar.gz freemarker-2.3.8/lib/freemarker.jar --strip=2 \
+ && rm -f freemarker.tar.gz
+
+# Download the boot JDK from AdoptOpenJDK.
+RUN cd /root \
+ && wget https://api.adoptopenjdk.net/openjdk8-openj9/releases/x64_linux/latest/binary -O bootjdk8.tar.gz \
+ && tar -xzf bootjdk8.tar.gz \
+ && rm -f bootjdk8.tar.gz \
+ && mv $(ls | grep -i jdk) bootjdk8
+
+# Set JAVA_HOME, and prepend $JAVA_HOME/bin to PATH.
+ENV JAVA_HOME=/root/bootjdk8
+ENV PATH="$JAVA_HOME/bin:$PATH"
 
 ENV CUB_CLASSPATH=/etc/confluent/docker/docker-utils.jar
 COPY include/etc/confluent/docker /etc/confluent/docker
