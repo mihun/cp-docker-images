@@ -4,6 +4,16 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <!--WA for scenario when parent pom will be not resolved-->
+    <!--<repositories>-->
+
+    <!--<repository>-->
+    <!--<id>confluent</id>-->
+    <!--<url>https://packages.confluent.io/maven/</url>-->
+    <!--</repository>-->
+
+    <!--</repositories>-->
+
     <parent>
         <groupId>io.confluent</groupId>
         <artifactId>common</artifactId>

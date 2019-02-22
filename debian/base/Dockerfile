@@ -55,9 +55,6 @@ ENV CONFLUENT_PLATFORM_LABEL=$CONFLUENT_PLATFORM_LABEL
 ENV CONFLUENT_VERSION="$CONFLUENT_MAJOR_VERSION.$CONFLUENT_MINOR_VERSION.$CONFLUENT_PATCH_VERSION"
 ENV CONFLUENT_DEB_VERSION="1"
 
-# Zulu
-ENV ZULU_OPENJDK_VERSION="8=8.30.0.1"
-
 # This affects how strings in Java class files are interpreted.  We want UTF-8 and this is the only locale in the
 # base image that supports it
 ENV LANG="C.UTF-8"
@@ -78,17 +75,55 @@ RUN echo "===> Updating debian ....." \
     && pip install --no-cache-dir --upgrade pip==${PYTHON_PIP_VERSION} \
     && pip install --no-cache-dir git+https://github.com/confluentinc/confluent-docker-utils@v0.0.20 \
     && apt remove --purge -y git \
-    && echo "Installing Zulu OpenJDK ${ZULU_OPENJDK_VERSION}" \
-    && apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 0x219BD9C9 \
-    && echo "deb http://repos.azulsystems.com/debian stable  main" >> /etc/apt/sources.list.d/zulu.list \
-    && apt-get -qq update \
-    && apt-get -y install zulu-${ZULU_OPENJDK_VERSION} \
     && echo "===> Installing Kerberos Patch ..." \
     && DEBIAN_FRONTEND=noninteractive apt-get -y install krb5-user \
     && rm -rf /var/lib/apt/lists/* \
     && echo "===> Adding confluent repository...${CONFLUENT_PACKAGES_REPO}/deb/${CONFLUENT_MAJOR_VERSION}.${CONFLUENT_MINOR_VERSION}" \
     && if [ "x$ALLOW_UNSIGNED" = "xtrue" ]; then echo "APT::Get::AllowUnauthenticated \"true\";" > /etc/apt/apt.conf.d/allow_unauthenticated; else curl -L ${CONFLUENT_PACKAGES_REPO}/deb/${CONFLUENT_MAJOR_VERSION}.${CONFLUENT_MINOR_VERSION}/archive.key | apt-key add - ; fi \
     && echo "deb [arch=amd64] ${CONFLUENT_PACKAGES_REPO}/deb/${CONFLUENT_MAJOR_VERSION}.${CONFLUENT_MINOR_VERSION} stable main" >> /etc/apt/sources.list
+
+ENV JAVA_VERSION jdk-11.0.2+9_openj9-0.12.1
+
+COPY slim-java* /usr/local/bin/
+
+RUN set -eux; \
+    ARCH="$(dpkg --print-architecture)"; \
+    case "${ARCH}" in \
+       ppc64el|ppc64le) \
+         ESUM='83fdd9e2a3f5f839269956e678b6478181b1a26e2c16c34508ed34642673760b'; \
+         BINARY_URL='https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.2%2B9_openj9-0.12.1/OpenJDK11U-jdk_ppc64le_linux_openj9_11.0.2_9_openj9-0.12.1_openj9-0.12.1.tar.gz'; \
+         ;; \
+       s390x) \
+         ESUM='3b2892e3f3302785ee1a00334b281b245a565e8a5147fdd441335c6f44ee6e69'; \
+         BINARY_URL='https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.2%2B9_openj9-0.12.1/OpenJDK11U-jdk_s390x_linux_openj9_11.0.2_9_openj9-0.12.1_openj9-0.12.1.tar.gz'; \
+         ;; \
+       amd64|x86_64) \
+         ESUM='a9b298391dc0baf49e935683fb13b1b18ef5fd5b1d0e1a1318c8e425ffdbcbcd'; \
+         BINARY_URL='https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.2%2B9_openj9-0.12.1/OpenJDK11U-jdk_x64_linux_openj9_11.0.2_9_openj9-0.12.1_openj9-0.12.1.tar.gz'; \
+         ;; \
+       *) \
+         echo "Unsupported arch: ${ARCH}"; \
+         exit 1; \
+         ;; \
+    esac; \
+    curl -Lso /tmp/openjdk.tar.gz ${BINARY_URL}; \
+    sha256sum /tmp/openjdk.tar.gz; \
+    mkdir -p /opt/java/openjdk; \
+    cd /opt/java/openjdk; \
+    echo "${ESUM}  /tmp/openjdk.tar.gz" | sha256sum -c -; \
+    tar -xf /tmp/openjdk.tar.gz; \
+    jdir=$(dirname $(dirname $(find /opt/java/openjdk -name javac))); \
+    mv ${jdir}/* /opt/java/openjdk; \
+    export PATH="/opt/java/openjdk/bin:$PATH"; \
+    apt-get update; apt-get install -y --no-install-recommends binutils; \
+    /usr/local/bin/slim-java.sh /opt/java/openjdk; \
+    apt-get remove -y binutils; \
+    rm -rf /var/lib/apt/lists/*; \
+    rm -rf ${jdir} /tmp/openjdk.tar.gz;
+
+ENV JAVA_HOME=/opt/java/openjdk \
+    PATH="/opt/java/openjdk/bin:$PATH"
+ENV JAVA_TOOL_OPTIONS="-XX:+IgnoreUnrecognizedVMOptions -XX:+UseContainerSupport -XX:+IdleTuningCompactOnIdle -XX:+IdleTuningGcOnIdle"
 
 ENV CUB_CLASSPATH=/etc/confluent/docker/docker-utils.jar
 COPY include/etc/confluent/docker /etc/confluent/docker
